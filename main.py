@@ -1,5 +1,5 @@
-from functions import *
-from elements import *
+from src.functions import *
+from src.elements import *
 
 window.setWindowTitle('Murmer')
 
@@ -12,4 +12,3 @@ window.dragLeaveEvent = dragLeaveEvent
 
 window.show()
 app.exec()
-
