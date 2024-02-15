@@ -1,7 +1,8 @@
 import time
 import speech_recognition as sr
+from PySide6.QtCore import QThread, Signal
 from PySide6.QtGui import QDropEvent, QDragEnterEvent
-from PySide6.QtWidgets import QDialog, QDialogButtonBox, QVBoxLayout, QLabel, QMessageBox
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QVBoxLayout, QLabel, QMessageBox, QProgressDialog
 from src.elements import *
 
 
@@ -32,6 +33,17 @@ def readFile(filepath):
     current_file_path.setText(file)
 
 
+class WorkerThread(QThread):
+    finished = Signal(object)
+
+    def __init__(self, filepath):
+        super().__init__()
+        self.filepath = filepath
+
+    def run(self):
+        output = speach2text(self.filepath)
+        self.finished.emit(output)
+
 class CustomDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -40,22 +52,38 @@ class CustomDialog(QDialog):
         QBtn = QDialogButtonBox.Ok | QDialogButtonBox.Cancel
 
         self.buttonBox = QDialogButtonBox(QBtn)
-        self.buttonBox.accepted.connect(self.accept)
+        self.buttonBox.accepted.connect(self.start_conversion)
         self.buttonBox.rejected.connect(self.reject)
 
         self.layout = QVBoxLayout()
-        message = QLabel("Convert file?")
-        self.layout.addWidget(message)
+        self.message_label = QLabel("Convert file?")
+        self.layout.addWidget(self.message_label)
         self.layout.addWidget(self.buttonBox)
         self.setLayout(self.layout)
 
-    def accept(self):
-        print("convert")
-        output = speach2text(filepath)
+    def start_conversion(self):
+        self.progress_dialog = QProgressDialog("Converting...", "Cancel", 0, 0, self)
+        self.progress_dialog.setWindowModality(Qt.WindowModal)
+        self.progress_dialog.canceled.connect(self.cancel_conversion)
+
+        self.worker_thread = WorkerThread(filepath)
+        self.worker_thread.finished.connect(self.conversion_complete)
+
+        self.worker_thread.start()
+        self.progress_dialog.exec_()
+
+    def cancel_conversion(self):
+        self.worker_thread.terminate()
+        self.progress_dialog.close()
+
+    def conversion_complete(self, output):
+        self.progress_dialog.close()
+
         if output is not None:
             self.show_message("Conversion Successful", output)
         else:
-            self.show_message("Invalid File", "Unable to convert the file.")
+            self.show_message("Invalid File", "Failed to convert the file.")
+
         self.close()
 
     def show_message(self, title, text):
